@@ -11,14 +11,6 @@ const pool = new Pool({
   database: 'lightbnb'
 });
 
-const getAllProperties = function(options, limit = 10) {
-  return pool.query(`
-  SELECT * FROM properties
-  LIMIT $1
-  `, [limit])
-  .then(res => res.rows);
-}
-
 
 // const getAllProperties = function(options, limit = 10) {
 //   pool.query(`
@@ -156,6 +148,48 @@ exports.getAllReservations = getAllReservations;
 //   }
 //   return Promise.resolve(limitedProperties);
 // }
+
+const getAllProperties = function(options, limit = 10) {
+ let queryString = `
+ SELECT properties.*, avg(property_reviews.rating) as average_rating
+FROM properties
+JOIN property_reviews ON properties.id = property_id;`;
+
+let queryParams = [];
+
+const checkParams = () => {
+  if (queryParams.length > 1) {
+    return 'AND';
+  } else {
+    return 'WHERE';
+  }
+}
+
+if (options.city) {
+  queryParams.push(`%${options.city}%`);
+}
+if (options.minimum_price_per_night) {
+  queryString += `${checkParams()} cost_per_night >= $${queryParams.length}`;
+}
+if (oprions.maximum_price_per_night) {
+  queryString += `${checkParams()} cost_per_night <= $${queryParams.length}`;
+}
+if (options.rating) {
+  queryParams.push(`${options.rating}`);
+  queryString += `${checkParams()} AVG(rating) >= $${queryParams.length}`;
+}
+
+queryParams.push(limit);
+queryString += `
+GROUP BY properties.id
+ORDER BY cost_per_night
+LIMIT $${queryParams.length}
+`
+
+return pool.query(queryString, queryParams)
+.then(res => res.rows);
+
+}
 exports.getAllProperties = getAllProperties;
 
 
